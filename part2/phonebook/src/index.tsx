@@ -1,7 +1,7 @@
 import React from "react";
 import { useState, useEffect } from "react";
-import Axios from "axios";
 import ReactDOM from "react-dom";
+import PersonService from "./services/persons";
 
 type FilterProps = {
   handleInputFilter: (event: {
@@ -52,12 +52,22 @@ const PersonForm: React.FC<PersonFormProps> = ({
   );
 };
 
+export type Person = {
+  name: string;
+  number: string;
+  id?: number;
+};
 type PersonsProps = {
-  persons: { name: string; number: string; id: number }[];
+  persons: Person[];
   newFilter: string;
+  handleDestroy: (p: Person) => void;
 };
 
-const Persons: React.FC<PersonsProps> = ({ persons, newFilter }) => {
+const Persons: React.FC<PersonsProps> = ({
+  persons,
+  newFilter,
+  handleDestroy
+}) => {
   return (
     <>
       {persons
@@ -67,6 +77,13 @@ const Persons: React.FC<PersonsProps> = ({ persons, newFilter }) => {
         .map(person => (
           <p key={person.id}>
             {person.name} {person.number}
+            <button
+              onClick={() => {
+                handleDestroy(person);
+              }}
+            >
+              delete
+            </button>
           </p>
         ))}
     </>
@@ -82,8 +99,8 @@ const App = () => {
   const [newFilter, setNewFilter] = useState("");
 
   useEffect(() => {
-    Axios.get("http://localhost:3001/persons").then(response => {
-      setPersons(response.data);
+    PersonService.getAll().then(persons => {
+      setPersons(persons);
     });
   }, []);
 
@@ -107,20 +124,44 @@ const App = () => {
 
   const handleAddToPersons = (event: { preventDefault: () => void }) => {
     event.preventDefault();
-    if (
-      persons.findIndex(person => {
-        return person.name === newName;
-      }) >= 0
-    ) {
-      alert(`${newName} is already added to phonebook`);
+    const personIndex = persons.findIndex(person => {
+      return person.name === newName;
+    });
+    if (personIndex >= 0) {
+      const currentPerson = persons[personIndex];
+      if (
+        window.confirm(
+          `${newName} is already added to phonebook, replace the old number with new one?`
+        )
+      ) {
+        PersonService.update(currentPerson.id, {
+          name: newName,
+          number: newNumber
+        }).then(person => {
+          const clonePersons = [...persons];
+          clonePersons[personIndex] = person;
+          setPersons(clonePersons);
+          setNewName("");
+          setNewNumber("");
+        });
+      }
       return;
     }
 
-    setPersons(
-      persons.concat({ name: newName, number: newNumber, id: Math.random() })
-    );
-    setNewName("");
-    setNewNumber("");
+    const newPerson = { name: newName, number: newNumber };
+    PersonService.create(newPerson).then(person => {
+      setPersons(persons.concat(person));
+      setNewName("");
+      setNewNumber("");
+    });
+  };
+
+  const handleDestroy = (targetObject: Person) => {
+    if (window.confirm(`Delete ${targetObject.name} ?`)) {
+      PersonService.destroy(targetObject).then(res => {
+        setPersons(persons.filter(p => p.id !== targetObject.id));
+      });
+    }
   };
 
   return (
@@ -136,7 +177,11 @@ const App = () => {
         newNumber={newNumber}
       />
       <h2>Numbers</h2>
-      <Persons persons={persons} newFilter={newFilter} />
+      <Persons
+        persons={persons}
+        newFilter={newFilter}
+        handleDestroy={handleDestroy}
+      />
     </div>
   );
 };
