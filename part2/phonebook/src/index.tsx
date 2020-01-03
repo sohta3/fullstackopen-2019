@@ -90,6 +90,58 @@ const Persons: React.FC<PersonsProps> = ({
   );
 };
 
+type NotificationProps = {
+  isError: boolean;
+  message: string;
+  clearMessage: () => void;
+};
+
+const Notification: React.FC<NotificationProps> = ({
+  isError,
+  message,
+  clearMessage
+}) => {
+  const [display, setDisplay] = useState("block");
+
+  useEffect(() => {
+    setDisplay("block");
+
+    return () => {
+      setTimeout(() => {
+        console.log("settimeout");
+        setDisplay("none");
+      }, 2000);
+    };
+  }, [message]);
+
+  const errorStyle = {
+    color: "red",
+    background: "lightgrey",
+    fontSize: 20,
+    borderStyle: "solid",
+    borderRadius: 5,
+    padding: 10,
+    marginBottom: 10,
+    transition: "all 0.5s",
+    display: display
+  };
+  const successStyle = {
+    color: "green",
+    background: "lightgrey",
+    fontSize: 20,
+    borderStyle: "solid",
+    borderRadius: 5,
+    padding: 10,
+    marginBottom: 10,
+    transition: "all 0.5s",
+    display: display
+  };
+
+  return message && message.length > 0 ? (
+    <div style={isError ? errorStyle : successStyle}>{message}</div>
+  ) : null;
+};
+
 const App = () => {
   const [persons, setPersons] = useState<
     { name: string; number: string; id: number }[]
@@ -97,6 +149,8 @@ const App = () => {
   const [newName, setNewName] = useState("");
   const [newNumber, setNewNumber] = useState("");
   const [newFilter, setNewFilter] = useState("");
+  const [message, setMessage] = useState("");
+  const [isError, setIsError] = useState(false);
 
   useEffect(() => {
     PersonService.getAll().then(persons => {
@@ -137,13 +191,24 @@ const App = () => {
         PersonService.update(currentPerson.id, {
           name: newName,
           number: newNumber
-        }).then(person => {
-          const clonePersons = [...persons];
-          clonePersons[personIndex] = person;
-          setPersons(clonePersons);
-          setNewName("");
-          setNewNumber("");
-        });
+        })
+          .then(person => {
+            const clonePersons = [...persons];
+            clonePersons[personIndex] = person;
+            setPersons(clonePersons);
+            setNewName("");
+            setNewNumber("");
+            setMessage(`Updated ${person.name} at ${new Date()}`);
+            setIsError(false);
+          })
+          .catch(error => {
+            if (error.response.status === 404) {
+              setMessage(
+                `Information of ${newName} has already been removed from server`
+              );
+              setIsError(true);
+            }
+          });
       }
       return;
     }
@@ -153,6 +218,8 @@ const App = () => {
       setPersons(persons.concat(person));
       setNewName("");
       setNewNumber("");
+      setMessage(`Added ${person.name} at ${new Date()}`);
+      setIsError(false);
     });
   };
 
@@ -164,9 +231,17 @@ const App = () => {
     }
   };
 
+  const clearMessage = () => {
+    setMessage("");
+  };
   return (
     <div>
       <h2>Phonebook</h2>
+      <Notification
+        isError={isError}
+        message={message}
+        clearMessage={clearMessage}
+      />
       <Filter handleInputFilter={handleInputFilter} newFilter={newFilter} />
       <h2>add a new</h2>
       <PersonForm
